@@ -1,15 +1,63 @@
 $(document).ready(function() {
-  $("#searchform").on("submit", function() {
+  var promise;
+
+  $("#searchform").on("submit", function(e) {
+    e.preventDefault();
+    $("#button").css("display", "none");
+
     var user = $("#username").val();
-    // var url = "https://api.github.com/users/" + user + "/repos?per_page=100";
     var repo_arr = [];
     var url = "https://api.github.com/users/" + user + "/repos?per_page=100";
 
-    $.when(get_url(url, repo_arr)).then(create_html_from_list(repo_arr), function() {
-      $("#list_repos").html("<span>Could not find the user you were looking for :(</span>");
-    });
+    // $.when(get_url(url, repo_arr)).then(create_html_from_list(repo_arr), function() {
+    //   $("#list_repos").html("<span>Could not find the user you were looking for :(</span>");
+    // });
 
+    $.when(promise = $.get(url).done(function(result) {
+      for (var item in result) {
+        repo_arr.push(result[item]);
+      }
+      create_html_from_list(repo_arr);
+    }).fail(function() {
+      $("#list_repos").html("<span>Could not find the user you were looking for :(</span>");
+    })).then(function() {
+      if (promise.getResponseHeader("Link")){
+        $("#button").css("display", "initial");
+      }
+    });
     return false;
+  });
+
+  $("#button").click(function() {
+    var next = null;
+    var link = promise.getResponseHeader("Link");
+    var rels = link.match(/"[^"]+"/g);
+    var urls = link.match(/<[^>]+>/g);
+    for (var i = 0; i < rels.length; i+=1) {
+      if (rels[i] == '"next"') {
+        next = urls[i];
+      }
+    }
+    if (next) {
+      var repo_arr = [];
+      var url = next.replace(/^"(.*)"$/, "$1");
+      url = url.replace(/^<(.*)>$/, "$1");
+      $.when(promise = $.get(url).done(function(result) {
+        for (var item in result) {
+          repo_arr.push(result[item]);
+        }
+        create_html_from_list(repo_arr);
+      }).fail(function() {
+        $("#list_repos").html("<span>Could not find the user you were looking for :(</span>");
+      })).then(function() {
+        if (promise.getResponseHeader("Link")){
+          $("#button").css("display", "initial");
+        }
+      });
+    }
+    else {
+      $("#list_repos").html("<span>No more repos to display :(</span>");
+    }
   });
 
 });
